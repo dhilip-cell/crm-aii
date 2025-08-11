@@ -3,6 +3,7 @@ from pymongo import MongoClient
 from pymongo.collection import Collection
 import os
 import json
+from sentence_transformers import SentenceTransformer
 
 # ==============================
 # Configuration (edit to suit)
@@ -29,16 +30,56 @@ def get_collection(client: MongoClient, db_name: str, coll_name: str) -> Collect
 # =======================
 # MongoDB Vector Search Logic (Example Placeholder)
 # =======================
+@st.cache_resource(show_spinner=False)
+def get_embedder():
+    # Load a pre-trained model for embeddings (e.g., Sentence-Transformers)
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    return model
+
 def atlas_vector_search(query: str) -> str:
-    # Placeholder MongoDB vector search logic
-    # Replace with actual logic for your vector search (e.g., Atlas vector search)
-    return f"Mock response for: {query}"
+    # Get the vector for the user query
+    embedder = get_embedder()
+    query_vec = embedder.encode([query])[0]
+
+    # Connect to MongoDB and get the collection
+    client = get_mongo()
+    coll = get_collection(client, DEFAULT_DB, DEFAULT_COLL)
+
+    # Perform the Atlas vector search
+    matches = coll.aggregate([
+        {
+            "$vectorSearch": {
+                "index": VECTOR_INDEX_NAME,
+                "path": "embedding",
+                "queryVector": query_vec,
+                "numCandidates": 5,
+                "limit": 5
+            }
+        },
+        {
+            "$project": {
+                "_id": 0,
+                "name": 1,
+                "leadId": 1,
+                "telecallerName": 1,
+                "remarks": 1,
+                "content": 1,
+                "score": {"$meta": "vectorSearchScore"}
+            }
+        }
+    ])
+
+    # Process the matches and return the response
+    response = "Here are the search results:\n"
+    for match in matches:
+        response += f"- {match['name']} (Score: {match['score']})\n"
+
+    return response
 
 # =======================
 # Custom Logic for Processing Chat Inputs
 # =======================
 def get_bot_response(user_query: str) -> str:
-    # This function returns the bot's response (replace with actual logic)
     return atlas_vector_search(user_query)
 
 # =======================
@@ -102,8 +143,3 @@ if st.button("Send"):
 
         # Scroll to the bottom
         st.rerun()
-
-# =======================
-# Interactivity Enhancements
-# =======================
-# You can add more interactivity and refine the chatbot further. For example, adding more buttons or customizing the message formats.
