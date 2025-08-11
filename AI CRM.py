@@ -101,7 +101,7 @@ if st.button("Send"):
         st.text_input("Ask me anything...", value="", key="new_input")
 
         # Scroll to the bottom
-        st.experimental_rerun()
+        st.rerun()
 
 # =======================
 # Interactivity Enhancements
