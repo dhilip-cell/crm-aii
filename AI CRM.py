@@ -28,7 +28,7 @@ def get_collection(client: MongoClient, db_name: str, coll_name: str) -> Collect
     return client[db_name][coll_name]
 
 # =======================
-# MongoDB Vector Search Logic (Example Placeholder)
+# MongoDB Vector Search Logic
 # =======================
 @st.cache_resource(show_spinner=False)
 def get_embedder():
@@ -40,7 +40,7 @@ def atlas_vector_search(query: str) -> str:
     # Get the vector for the user query
     embedder = get_embedder()
     query_vec = embedder.encode([query])[0]
-
+    
     # Connect to MongoDB and get the collection
     client = get_mongo()
     coll = get_collection(client, DEFAULT_DB, DEFAULT_COLL)
@@ -50,26 +50,26 @@ def atlas_vector_search(query: str) -> str:
         {
             "$vectorSearch": {
                 "index": VECTOR_INDEX_NAME,
-                "path": "embedding",
+                "path": "embedding",  # Assuming 'embedding' field is used for vector search
                 "queryVector": query_vec,
-                "numCandidates": 5,
-                "limit": 5
+                "numCandidates": 5,  # Return top 5 matches
+                "limit": 5  # Limit the result set
             }
         },
         {
             "$project": {
                 "_id": 0,
-                "name": 1,
+                "name": 1,  # Include the necessary fields
                 "leadId": 1,
                 "telecallerName": 1,
                 "remarks": 1,
                 "content": 1,
-                "score": {"$meta": "vectorSearchScore"}
+                "score": {"$meta": "vectorSearchScore"}  # Include vector search score
             }
         }
     ])
 
-    # Process the matches and return the response
+    # Process the matches and return a meaningful response
     response = "Here are the search results:\n"
     for match in matches:
         response += f"- {match['name']} (Score: {match['score']})\n"
@@ -80,6 +80,7 @@ def atlas_vector_search(query: str) -> str:
 # Custom Logic for Processing Chat Inputs
 # =======================
 def get_bot_response(user_query: str) -> str:
+    # Call the vector search function to get a response from MongoDB
     return atlas_vector_search(user_query)
 
 # =======================
@@ -142,4 +143,9 @@ if st.button("Send"):
         st.text_input("Ask me anything...", value="", key="new_input")
 
         # Scroll to the bottom
-        st.rerun()
+        st.rerun()  # Replaced with st.rerun()
+
+# =======================
+# Interactivity Enhancements
+# =======================
+# You can add more interactivity and refine the chatbot further. For example, adding more buttons or customizing the message formats.
