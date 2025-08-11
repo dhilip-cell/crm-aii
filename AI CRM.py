@@ -27,6 +27,21 @@ def get_collection(client: MongoClient, db_name: str, coll_name: str) -> Collect
     return client[db_name][coll_name]
 
 # =======================
+# MongoDB Vector Search Logic (Example Placeholder)
+# =======================
+def atlas_vector_search(query: str) -> str:
+    # Placeholder MongoDB vector search logic
+    # Replace with actual logic for your vector search (e.g., Atlas vector search)
+    return f"Mock response for: {query}"
+
+# =======================
+# Custom Logic for Processing Chat Inputs
+# =======================
+def get_bot_response(user_query: str) -> str:
+    # This function returns the bot's response (replace with actual logic)
+    return atlas_vector_search(user_query)
+
+# =======================
 # Chatbot Interface
 # =======================
 st.set_page_config(page_title="CRM Assistant", page_icon="📚", layout="wide")
@@ -87,21 +102,6 @@ if st.button("Send"):
 
         # Scroll to the bottom
         st.experimental_rerun()
-
-# =======================
-# MongoDB Vector Search Logic (Example Placeholder)
-# =======================
-def atlas_vector_search(query: str) -> str:
-    # Placeholder MongoDB vector search logic
-    # Replace with actual logic for your vector search (e.g., Atlas vector search)
-    return f"Mock response for: {query}"
-
-# =======================
-# Custom Logic for Processing Chat Inputs
-# =======================
-def get_bot_response(user_query: str) -> str:
-    # You can replace this with actual MongoDB search or any other logic.
-    return atlas_vector_search(user_query)
 
 # =======================
 # Interactivity Enhancements
