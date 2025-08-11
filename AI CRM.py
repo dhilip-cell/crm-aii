@@ -1,20 +1,8 @@
-# Put this at the very top of the file
-from __future__ import annotations
-
-# Now, other imports can follow
-import pymongo
-import os
-import json
-from typing import Any, Dict, List, Optional
-
-import numpy as np
-import pandas as pd
 import streamlit as st
-import pymongo
 from pymongo import MongoClient
 from pymongo.collection import Collection
-
-
+import os
+import json
 
 # ==============================
 # Configuration (edit to suit)
@@ -23,35 +11,6 @@ DEFAULT_DB = os.getenv("DB_NAME", "test")
 DEFAULT_COLL = os.getenv("COLLECTION_NAME", "baffle_collection")
 USE_ATLAS_VECTOR = os.getenv("USE_ATLAS_VECTOR", "1") == "1"
 VECTOR_INDEX_NAME = os.getenv("VECTOR_INDEX_NAME", "rag_vector_index")
-
-# Which fields should be concatenated for RAG text?
-TEXT_FIELDS = [
-    "notes",
-    "remarks",
-    "description",
-    "content",
-]
-
-# Safe-list for structured querying. Add your schema keys here.
-ALLOWED_FIELDS = {
-    "_id",
-    "leadId",
-    "name",
-    "phone",
-    "email",
-    "city",
-    "pincode",
-    "crmStage",
-    "telecallerName",
-    "telecaller.name",
-    "role",
-    "createdAt",
-    "modifiedAt",
-    "notes",
-    "remarks",
-    "description",
-    "content",
-}
 
 # =======================
 # MongoDB connections
@@ -64,117 +23,87 @@ def get_mongo() -> MongoClient:
     client = MongoClient(uri)
     return client
 
-
 def get_collection(client: MongoClient, db_name: str, coll_name: str) -> Collection:
     return client[db_name][coll_name]
 
 # =======================
-# Embeddings utilities
+# Chatbot Interface
 # =======================
-@st.cache_resource(show_spinner=False)
-def get_embedder():
-    # Use the embeddings from Atlas or other models
-    pass
+st.set_page_config(page_title="CRM Assistant", page_icon="📚", layout="wide")
 
-def build_rag_text(doc: Dict[str, Any]) -> str:
-    parts = []
-    for f in TEXT_FIELDS:
-        val = doc.get(f)
-        if isinstance(val, str) and val.strip():
-            parts.append(val.strip())
-    # Fallback: include a couple common fields if no text fields are present
-    if not parts:
-        for f in ["name", "remarks", "notes"]:
-            val = doc.get(f)
-            if isinstance(val, str) and val.strip():
-                parts.append(val.strip())
-    return " \\n".join(parts)
+# Add a header
+st.markdown(
+    """
+    <style>
+    #header {
+        background: #0D333F;
+        padding: 20px;
+        border-radius: 12px;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    #header h1 {
+        font-size: 26px;
+        font-weight: 700;
+        color: #ffffff;
+        margin: 0;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-# =======================
-# Vector search paths
-# =======================
-def atlas_vector_search(coll: Collection, query_vec: List[float], k: int = 5) -> List[Dict[str, Any]]:
-    pipeline = [
-        {
-            "$vectorSearch": {
-                "index": VECTOR_INDEX_NAME,
-                "path": "embedding",
-                "queryVector": query_vec,
-                "numCandidates": 200,
-                "limit": k,
-            }
-        },
-        {
-            "$project": {
-                "_id": 0,
-                "score": {"$meta": "vectorSearchScore"},
-                "name": 1,
-                "leadId": 1,
-                "telecallerName": 1,
-                "telecaller": 1,
-                "notes": 1,
-                "remarks": 1,
-                "content": 1,
-            }
-        },
-    ]
-    return list(coll.aggregate(pipeline))
+st.markdown('<div id="header"><h1>CRM Assistant</h1></div>', unsafe_allow_html=True)
 
-# =======================
-# Query processing
-# =======================
-def run_structured_query(coll: Collection, spec: Dict[str, Any]) -> pd.DataFrame:
-    mode = spec.get("mode")
-    filt = spec.get("filter") or {}
-    proj = spec.get("projection")
-    srt = spec.get("sort")
-    lim = spec.get("limit") or 200
+# Chatbox UI setup
+if "history" not in st.session_state:
+    st.session_state.history = []  # History for chat messages
 
-    if mode == "distinct" and spec.get("distinctField"):
-        field = spec["distinctField"]
-        vals = coll.distinct(field, filter=filt)
-        df = pd.DataFrame({field: vals})
-        return df
+# Display previous messages
+for message in st.session_state.history:
+    sender = message["sender"]
+    text = message["message"]
+    if sender == "user":
+        st.markdown(f'<div style="background-color: #33B04A; color: white; padding: 12px 14px; border-radius: 12px; margin: 6px 0; text-align: right;">{text}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div style="background-color: #dcd9e6; color: black; padding: 12px 14px; border-radius: 12px; margin: 6px 0; text-align: left;">{text}</div>', unsafe_allow_html=True)
 
-    cursor = coll.find(filt, projection=proj)
-    if srt:
-        cursor = cursor.sort(srt["field"], srt["direction"])
-    cursor = cursor.limit(lim)
-    rows = list(cursor)
+# Input box and button
+input_text = st.text_input("Ask me anything...")
 
-    # Flatten nested keys for readability
-    def flatten(d: Dict[str, Any], parent: str = "", sep: str = ".") -> Dict[str, Any]:
-        items = []
-        for k, v in d.items():
-            new_key = f"{parent}{sep}{k}" if parent else k
-            if isinstance(v, dict):
-                items.extend(flatten(v, new_key, sep=sep).items())
-            else:
-                items.append((new_key, v))
-        return dict(items)
+if st.button("Send"):
+    if input_text:
+        # User message
+        st.session_state.history.append({"sender": "user", "message": input_text})
 
-    flat_rows = [flatten({k: v for k, v in r.items() if k != "_id"}) for r in rows]
-    df = pd.DataFrame(flat_rows)
-    return df
+        # Bot response (this is where your logic for querying MongoDB will go)
+        bot_response = get_bot_response(input_text)
+
+        # Adding bot response
+        st.session_state.history.append({"sender": "bot", "message": bot_response})
+
+        # Clear the input field
+        st.text_input("Ask me anything...", value="", key="new_input")
+
+        # Scroll to the bottom
+        st.experimental_rerun()
 
 # =======================
-# Streamlit setup
+# MongoDB Vector Search Logic (Example Placeholder)
 # =======================
-st.set_page_config(page_title="Mongo RAG Chatbot", page_icon="📚", layout="wide")
+def atlas_vector_search(query: str) -> str:
+    # Placeholder MongoDB vector search logic
+    # Replace with actual logic for your vector search (e.g., Atlas vector search)
+    return f"Mock response for: {query}"
 
-st.title("📚 MongoDB RAG Chatbot")
-st.caption("Ask questions or request structured lists/filters. Example: **list out the telecaller name**")
+# =======================
+# Custom Logic for Processing Chat Inputs
+# =======================
+def get_bot_response(user_query: str) -> str:
+    # You can replace this with actual MongoDB search or any other logic.
+    return atlas_vector_search(user_query)
 
-client = get_mongo()
-coll = get_collection(client, DEFAULT_DB, DEFAULT_COLL)
-
-user_msg = st.chat_input("Type your question… e.g., list out the telecaller name")
-
-if user_msg:
-    st.session_state.history.append(("user", user_msg))
-    # Run vector search if the query is structured
-    query_vec = get_embedder().embed_query(user_msg)  # Update with your embedding logic
-    matches = atlas_vector_search(coll, query_vec, k=5)
-
-    # Output the result
-    st.write(matches)  # Show matched documents in the UI as needed
+# =======================
+# Interactivity Enhancements
+# =======================
+# You can add more interactivity and refine the chatbot further. For example, adding more buttons or customizing the message formats.
